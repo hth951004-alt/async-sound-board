@@ -403,9 +403,12 @@ export default function App() {
             element.offsetWidth,
             state.targetScale,
           )
-          state.targetY =
-            height * slotCenters[slotIndex] +
-            element.offsetHeight * state.targetScale * 0.08
+          // Smaller chips sit higher so the board lip hides less of them.
+          const scaledHeight = element.offsetHeight * state.targetScale
+          const sizeRatio = Math.min(1, scaledHeight / (height * 0.26))
+          const depth = scaledHeight * (0.02 + sizeRatio * 0.08)
+          const lift = (1 - sizeRatio) * scaledHeight * 0.55
+          state.targetY = height * slotCenters[slotIndex] + depth - lift
           state.rotation = ((state.rotation + 180) % 360) - 180
           state.vx = 0
           state.vy = 0
