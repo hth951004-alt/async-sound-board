@@ -210,6 +210,21 @@ img {
 
 .chip.is-inserted {
   cursor: grab;
+  /* Hide the silver/grey tip once the chip is seated in a slot. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 68%,
+    rgba(0, 0, 0, 0.35) 78%,
+    transparent 88%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 68%,
+    rgba(0, 0, 0, 0.35) 78%,
+    transparent 88%
+  );
 }
 
 .chip.is-dragging {
