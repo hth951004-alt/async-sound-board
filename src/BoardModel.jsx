@@ -17,13 +17,24 @@ import {
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import {
   SILVER_BASE_RATIO,
+  chipModelUrl,
   createSilverBaseMaterial,
   createTopMaterial,
   lookIdForChip,
+  needsPlanarUVs,
 } from './chipLooks.js'
 
 const TRAY_URL = `${import.meta.env.BASE_URL}wavy-tray.glb?v=pp1`
-const CHIP_URL = `${import.meta.env.BASE_URL}chip-example.glb?v=1`
+const CHIP_STONE_URL = `${import.meta.env.BASE_URL}chip-example.glb?v=1`
+const CHIP_WHALE_URL = `${import.meta.env.BASE_URL}chip-whale.glb?v=1`
+const CHIP_WHALE_GLASS_URL = `${import.meta.env.BASE_URL}chip-whale-glass.glb?v=glass1`
+const CHIP_BAMBOO_URL = `${import.meta.env.BASE_URL}chip-bamboo.glb?v=bamboo1`
+const CHIP_WAVE_URL = `${import.meta.env.BASE_URL}chip-wave.glb?v=wave1`
+const CHIP_LEAF_URL = `${import.meta.env.BASE_URL}chip-leaf.glb?v=leaf1`
+const CHIP_SOIL_URL = `${import.meta.env.BASE_URL}chip-soil.glb?v=soil1`
+const CHIP_GRASS_URL = `${import.meta.env.BASE_URL}chip-grass.glb?v=grass1`
+const CHIP_SHARD_URL = `${import.meta.env.BASE_URL}chip-shard.glb?v=shard1`
+const CHIP_SNOW_URL = `${import.meta.env.BASE_URL}chip-snow.glb?v=snow1`
 
 /** Number of horizontal grooves (rows). Multiple chips can share one row. */
 export const ROW_COUNT = 6
@@ -32,7 +43,8 @@ export const SLOT_COUNT = ROW_COUNT
 
 const VIEW_PRESETS = {
   board: {
-    position: [0, 0.95, 2.25],
+    // slightly smaller in frame, gentle side angle
+    position: [0.95, 0.88, 2.85],
     target: [0, 0.28, 0],
   },
   side: {
@@ -61,6 +73,10 @@ const ROW_SEATS = [
 /** 1·3·5층만 미세하게 앞(+Z)으로. */
 const ODD_ROW_FORWARD = 0.018
 const CHIP_BURY = [0, -0.02, -0.025]
+/** Whale chips (1–3) sit slightly higher in the groove. */
+const WHALE_Y_LIFT = 0.014
+/** Soil chips (16–18) sit slightly higher in the groove. */
+const SOIL_Y_LIFT = 0.014
 const CHIP_SCALE = 0.24
 const CHIP_Z_SQUASH = 0.72
 /** How far above the seat the chip travels on insert / eject. */
@@ -218,27 +234,29 @@ function splitChipBaseAndBody(sourceMesh) {
   }
 }
 
-let cachedChipParts = null
+const chipPartsCache = new Map()
 
-function getChipParts(scene) {
-  if (cachedChipParts) return cachedChipParts
+function getChipParts(scene, cacheKey) {
+  if (chipPartsCache.has(cacheKey)) return chipPartsCache.get(cacheKey)
 
   let sourceMesh = null
   scene.traverse((node) => {
     if (node.isMesh && !sourceMesh) sourceMesh = node
   })
   if (!sourceMesh) {
-    cachedChipParts = { baseGeo: null, bodyGeo: null, sourceMaterial: null }
-    return cachedChipParts
+    const empty = { baseGeo: null, bodyGeo: null, sourceMaterial: null }
+    chipPartsCache.set(cacheKey, empty)
+    return empty
   }
 
   const { baseGeo, bodyGeo } = splitChipBaseAndBody(sourceMesh)
-  cachedChipParts = {
+  const parts = {
     baseGeo,
     bodyGeo,
     sourceMaterial: sourceMesh.material,
   }
-  return cachedChipParts
+  chipPartsCache.set(cacheKey, parts)
+  return parts
 }
 
 /** Map texture left→right onto the chip face (smooth | porous). */
@@ -256,8 +274,8 @@ function applyPlanarFrontUVs(geometry) {
   geometry.setAttribute('uv', new BufferAttribute(uvs, 2))
 }
 
-function buildChipRoot(scene, lookId) {
-  const { baseGeo, bodyGeo, sourceMaterial } = getChipParts(scene)
+function buildChipRoot(scene, lookId, cacheKey) {
+  const { baseGeo, bodyGeo, sourceMaterial } = getChipParts(scene, cacheKey)
   const group = new Group()
   group.name = 'chip-root'
 
@@ -272,10 +290,31 @@ function buildChipRoot(scene, lookId) {
     group.add(base)
   }
   if (bodyGeo) {
-    // Sand/terrazzo maps need planar UVs so porosity stays on one side only.
-    const usePlanar = lookId === 'sand' || lookId === 'terrazzo'
-    const geo = usePlanar ? bodyGeo.clone() : bodyGeo
+    const usePlanar = needsPlanarUVs(lookId)
+    const smoothShell =
+      lookId === 'whale-gradient' ||
+      lookId === 'whale-frost' ||
+      lookId === 'bamboo-frost' ||
+      lookId === 'bamboo-gloss' ||
+      lookId === 'wave-swirl' ||
+      lookId === 'wave-clear' ||
+      lookId === 'leaf-jade' ||
+      lookId === 'leaf-grain' ||
+      lookId === 'soil-clay' ||
+      lookId === 'soil-crack' ||
+      lookId === 'grass-glow' ||
+      lookId === 'grass-frost' ||
+      lookId === 'shard-rose' ||
+      lookId === 'shard-iris' ||
+      lookId === 'snow-glow' ||
+      lookId === 'snow-clear'
+    const geo = usePlanar || smoothShell ? bodyGeo.clone() : bodyGeo
     if (usePlanar) applyPlanarFrontUVs(geo)
+    if (smoothShell) {
+      // Soften Tripo facet noise on the outer shell
+      geo.deleteAttribute('normal')
+      geo.computeVertexNormals()
+    }
     const body = new Mesh(geo, topMat)
     body.castShadow = true
     body.receiveShadow = true
@@ -328,18 +367,26 @@ function ChipModel3D({
   onRequestRemove,
   onExited,
 }) {
-  const { scene } = useGLTF(CHIP_URL)
+  const modelUrl = chipModelUrl(chipId)
+  const { scene } = useGLTF(modelUrl)
   const groupRef = useRef(null)
   const phaseRef = useRef('insert') // insert | seated | eject
   const progressRef = useRef(0)
   const ejectFromYRef = useRef(0)
   const exitedRef = useRef(false)
-  const [seatY, seatZ] = rowSeat(slot)
+  const [seatY0, seatZ] = rowSeat(slot)
   const lookId = lookIdForChip(chipId)
+  const seatY =
+    seatY0 +
+    (lookId === 'whale'
+      ? WHALE_Y_LIFT
+      : lookId === 'soil' || lookId === 'soil-clay' || lookId === 'soil-crack'
+        ? SOIL_Y_LIFT
+        : 0)
 
   const prepared = useMemo(
-    () => buildChipRoot(scene, lookId),
-    [scene, lookId],
+    () => buildChipRoot(scene, lookId, modelUrl),
+    [scene, lookId, modelUrl],
   )
 
   useLayoutEffect(() => {
@@ -511,4 +558,13 @@ export default function BoardModel({
 }
 
 useGLTF.preload(TRAY_URL)
-useGLTF.preload(CHIP_URL)
+useGLTF.preload(CHIP_STONE_URL)
+useGLTF.preload(CHIP_WHALE_URL)
+useGLTF.preload(CHIP_WHALE_GLASS_URL)
+useGLTF.preload(CHIP_BAMBOO_URL)
+useGLTF.preload(CHIP_WAVE_URL)
+useGLTF.preload(CHIP_LEAF_URL)
+useGLTF.preload(CHIP_SOIL_URL)
+useGLTF.preload(CHIP_GRASS_URL)
+useGLTF.preload(CHIP_SHARD_URL)
+useGLTF.preload(CHIP_SNOW_URL)
