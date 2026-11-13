@@ -1,7 +1,4 @@
 import { useMemo, useState } from 'react'
-import boardImage from './assets/figma/board.png'
-import toolSide from './assets/figma/tool-side.png'
-import toolEq from './assets/figma/tool-eq.png'
 import BoardModel, { ROW_COUNT, pickChipX } from './BoardModel.jsx'
 
 const chipModules = import.meta.glob('../image/chip-reed-*.svg', {
@@ -20,15 +17,8 @@ const GALLERY_CHIPS = Object.entries(chipModules)
     }
   })
 
-const BOARD_TOOLS = [
-  { id: 'board', src: boardImage, label: 'Board view' },
-  { id: 'side', src: toolSide, label: 'Side view' },
-  { id: 'eq', src: toolEq, label: 'Control view' },
-]
-
 export default function App() {
   const [placements, setPlacements] = useState([])
-  const [activeTool, setActiveTool] = useState('board')
 
   const usedIds = useMemo(
     () => new Set(placements.map((item) => item.chipId)),
@@ -37,8 +27,9 @@ export default function App() {
 
   /** Prefer the least-filled row so several chips can share a line with random X. */
   const nextRow = (current) => {
+    const active = current.filter((item) => !item.exiting)
     const counts = Array.from({ length: ROW_COUNT }, () => 0)
-    for (const item of current) counts[item.slot] += 1
+    for (const item of active) counts[item.slot] += 1
     let best = 0
     for (let row = 1; row < ROW_COUNT; row += 1) {
       if (counts[row] < counts[best]) best = row
@@ -46,21 +37,30 @@ export default function App() {
     return best
   }
 
+  const requestRemove = (chipId) => {
+    setPlacements((current) =>
+      current.map((item) =>
+        item.chipId === chipId && !item.exiting ? { ...item, exiting: true } : item,
+      ),
+    )
+  }
+
+  const finishRemove = (chipId) => {
+    setPlacements((current) => current.filter((item) => item.chipId !== chipId))
+  }
+
   const onGalleryClick = (chipId) => {
     if (usedIds.has(chipId)) {
-      setPlacements((current) => current.filter((item) => item.chipId !== chipId))
+      requestRemove(chipId)
       return
     }
 
     setPlacements((current) => {
+      const active = current.filter((item) => !item.exiting)
       const slot = nextRow(current)
-      const x = pickChipX(slot, current)
+      const x = pickChipX(slot, active)
       return [...current, { chipId, slot, x }]
     })
-  }
-
-  const removePlacement = (chipId) => {
-    setPlacements((current) => current.filter((item) => item.chipId !== chipId))
   }
 
   return (
@@ -90,26 +90,12 @@ export default function App() {
         <section className="main-panel">
           <p className="section-title section-title--board">board</p>
 
-          <div className="board-tools" role="toolbar" aria-label="Board tools">
-            {BOARD_TOOLS.map((tool) => (
-              <button
-                key={tool.id}
-                type="button"
-                className={`board-tool${activeTool === tool.id ? ' is-active' : ''}`}
-                aria-label={tool.label}
-                aria-pressed={activeTool === tool.id}
-                onClick={() => setActiveTool(tool.id)}
-              >
-                <img src={tool.src} alt="" draggable={false} />
-              </button>
-            ))}
-          </div>
-
           <div className="board-stage" aria-label="Board">
             <BoardModel
-              view={activeTool}
+              view="board"
               placements={placements}
-              onRemoveChip={removePlacement}
+              onRequestRemove={requestRemove}
+              onExited={finishRemove}
             />
             <p className="drop-hint drop-hint--idle">
               칩 사진을 클릭하면 3D로 보드에 꽂혀요 · 보드의 칩을 클릭하면 빠져요

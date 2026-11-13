@@ -82,7 +82,8 @@ button {
   min-width: 0;
   min-height: 0;
   padding-top: calc(36.5 / 736 * 100vh);
-  padding-right: calc(46 / 454 * 100%);
+  /* no right padding — scrollbar sits on the chips | board boundary */
+  padding-right: 0;
   padding-bottom: calc(24 / 736 * 100vh);
   padding-left: calc(41 / 454 * 100%);
   overflow: hidden;
@@ -99,6 +100,10 @@ button {
   white-space: nowrap;
 }
 
+.section-title--chips {
+  padding-right: calc(46 / 454 * 100%);
+}
+
 .chip-grid {
   /* Figma: 177×177 cards, col gap 13, row gap 10 */
   display: grid;
@@ -110,9 +115,26 @@ button {
   justify-items: stretch;
   width: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* card inset; scrollbar renders at the panel’s right edge (board boundary) */
+  padding-right: calc(46 / 454 * 100%);
   padding-bottom: 1rem;
   scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 28%) transparent;
+}
+
+.chip-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chip-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chip-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(0 0 0 / 28%);
 }
 
 .chip-card {
@@ -150,67 +172,30 @@ button {
 
 .main-panel {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--panel);
-  /* board title at frame x=496 → 42px into right panel; y=36.5 */
-  padding-top: calc(36.5 / 736 * 100vh);
-  padding-right: calc(29 / 677 * 100%);
-  padding-bottom: calc(24 / 736 * 100vh);
-  padding-left: calc(42 / 677 * 100%);
 }
 
 .section-title--board {
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: start;
-  margin-bottom: 0;
-}
-
-.board-tools {
   position: absolute;
-  top: calc(31 / 736 * 100vh);
-  right: calc(29 / 1131 * 100vw);
-  display: grid;
-  gap: calc(16 / 736 * 100vh);
+  top: calc(36.5 / 736 * 100vh);
+  left: calc(42 / 677 * 100%);
   z-index: 2;
-}
-
-.board-tool {
-  width: calc(55 / 1131 * 100vw);
-  height: calc(55 / 1131 * 100vw);
-  padding: 0.25rem;
-  border: 0;
-  border-radius: 4px;
-  background: #efefef;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.board-tool.is-active {
-  outline: 1px solid #111;
-}
-
-.board-tool img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  margin: 0;
   pointer-events: none;
 }
 
 .board-stage {
-  position: relative;
-  grid-column: 1;
-  grid-row: 2;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
-  display: grid;
-  place-items: center;
-  /* leave room for tools: Figma board image ends before tools */
-  padding-right: calc(67 / 677 * 100%);
+  overflow: hidden;
+  /* Full-bleed 3D view — no white mat clipping zoomed board */
+  padding: 0;
 }
 
 .board-3d {
@@ -221,6 +206,7 @@ button {
   z-index: 0;
   pointer-events: auto;
   cursor: grab;
+  overflow: hidden;
 }
 
 .board-3d:active {
@@ -271,13 +257,18 @@ button {
   .chips-panel {
     padding-top: 1.25rem;
     padding-left: 1.25rem;
-    padding-right: 1.25rem;
+    padding-right: 0;
     gap: 1rem;
+  }
+
+  .section-title--chips {
+    padding-right: 1.25rem;
   }
 
   .chip-grid {
     column-gap: 13px;
     row-gap: 10px;
+    padding-right: 1.25rem;
   }
 
   .section-title {
@@ -286,15 +277,5 @@ button {
 
   .board-stage {
     padding-right: 0;
-  }
-
-  .board-tools {
-    right: 0.8rem;
-    top: 1rem;
-  }
-
-  .board-tool {
-    width: 2.75rem;
-    height: 2.75rem;
   }
 }

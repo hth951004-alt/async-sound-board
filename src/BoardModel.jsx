@@ -4,13 +4,23 @@ import { Environment, OrbitControls, useGLTF } from '@react-three/drei'
 import {
   ACESFilmicToneMapping,
   Box3,
+  BufferAttribute,
+  BufferGeometry,
   Color,
   DoubleSide,
+  Group,
+  Mesh,
   MeshPhysicalMaterial,
   SRGBColorSpace,
   Vector3,
 } from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
+import {
+  SILVER_BASE_RATIO,
+  createSilverBaseMaterial,
+  createTopMaterial,
+  lookIdForChip,
+} from './chipLooks.js'
 
 const TRAY_URL = `${import.meta.env.BASE_URL}wavy-tray.glb?v=pp1`
 const CHIP_URL = `${import.meta.env.BASE_URL}chip-example.glb?v=1`
@@ -48,13 +58,15 @@ const ROW_SEATS = [
   [0.515, -0.12], // 6 맨 위 — 살짝 앞(+Z)
 ]
 
+/** 1·3·5층만 미세하게 앞(+Z)으로. */
+const ODD_ROW_FORWARD = 0.018
 const CHIP_BURY = [0, -0.02, -0.025]
 const CHIP_SCALE = 0.24
 const CHIP_Z_SQUASH = 0.72
-/** How far above the seat the chip starts before dropping in. */
+/** How far above the seat the chip travels on insert / eject. */
 const INSERT_DROP = 0.42
-/** Insert animation duration in seconds. */
 const INSERT_DURATION = 0.55
+const EJECT_DURATION = 0.42
 /** Board half-width usable for chip centers (tray ~±0.54). */
 export const CHIP_X_RANGE = 0.36
 /** Minimum center-to-center gap on the same row. */
@@ -66,9 +78,16 @@ function easeOutBack(t) {
   return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
 }
 
+function easeInCubic(t) {
+  return t * t * t
+}
+
 export function rowSeat(index) {
   const i = Math.max(0, Math.min(ROW_COUNT - 1, index))
-  return ROW_SEATS[i]
+  const [y, z] = ROW_SEATS[i]
+  // 1·3·5층 (0-based even indices from bottom)
+  const forward = i % 2 === 0 ? ODD_ROW_FORWARD : 0
+  return [y, z + forward]
 }
 
 /** Pick an X on `row` that stays clear of existing placements when possible. */
@@ -141,6 +160,137 @@ function normalizeObject(root, targetSize) {
   return root
 }
 
+/** Split one baked Tripo mesh into silver tip (low Y) + swappable top body. */
+function splitChipBaseAndBody(sourceMesh) {
+  const geometry = sourceMesh.geometry.index
+    ? sourceMesh.geometry.toNonIndexed()
+    : sourceMesh.geometry.clone()
+
+  const pos = geometry.attributes.position
+  const nor = geometry.attributes.normal
+  const uv = geometry.attributes.uv
+  let ymin = Infinity
+  let ymax = -Infinity
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i)
+    if (y < ymin) ymin = y
+    if (y > ymax) ymax = y
+  }
+  const cutY = ymin + (ymax - ymin) * SILVER_BASE_RATIO
+
+  const buckets = {
+    base: { pos: [], nor: [], uv: [] },
+    body: { pos: [], nor: [], uv: [] },
+  }
+
+  for (let i = 0; i < pos.count; i += 3) {
+    const y0 = pos.getY(i)
+    const y1 = pos.getY(i + 1)
+    const y2 = pos.getY(i + 2)
+    const key = (y0 + y1 + y2) / 3 < cutY ? 'base' : 'body'
+    const bucket = buckets[key]
+    for (let k = 0; k < 3; k += 1) {
+      const idx = i + k
+      bucket.pos.push(pos.getX(idx), pos.getY(idx), pos.getZ(idx))
+      if (nor) bucket.nor.push(nor.getX(idx), nor.getY(idx), nor.getZ(idx))
+      if (uv) bucket.uv.push(uv.getX(idx), uv.getY(idx))
+    }
+  }
+
+  const makeGeo = (bucket) => {
+    if (bucket.pos.length === 0) return null
+    const geo = new BufferGeometry()
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(bucket.pos), 3))
+    if (bucket.nor.length) {
+      geo.setAttribute('normal', new BufferAttribute(new Float32Array(bucket.nor), 3))
+    } else {
+      geo.computeVertexNormals()
+    }
+    if (bucket.uv.length) {
+      geo.setAttribute('uv', new BufferAttribute(new Float32Array(bucket.uv), 2))
+    }
+    return geo
+  }
+
+  return {
+    baseGeo: makeGeo(buckets.base),
+    bodyGeo: makeGeo(buckets.body),
+  }
+}
+
+let cachedChipParts = null
+
+function getChipParts(scene) {
+  if (cachedChipParts) return cachedChipParts
+
+  let sourceMesh = null
+  scene.traverse((node) => {
+    if (node.isMesh && !sourceMesh) sourceMesh = node
+  })
+  if (!sourceMesh) {
+    cachedChipParts = { baseGeo: null, bodyGeo: null, sourceMaterial: null }
+    return cachedChipParts
+  }
+
+  const { baseGeo, bodyGeo } = splitChipBaseAndBody(sourceMesh)
+  cachedChipParts = {
+    baseGeo,
+    bodyGeo,
+    sourceMaterial: sourceMesh.material,
+  }
+  return cachedChipParts
+}
+
+/** Map texture left→right onto the chip face (smooth | porous). */
+function applyPlanarFrontUVs(geometry) {
+  geometry.computeBoundingBox()
+  const { min, max } = geometry.boundingBox
+  const pos = geometry.attributes.position
+  const uvs = new Float32Array(pos.count * 2)
+  const spanX = max.x - min.x || 1
+  const spanY = max.y - min.y || 1
+  for (let i = 0; i < pos.count; i += 1) {
+    uvs[i * 2] = (pos.getX(i) - min.x) / spanX
+    uvs[i * 2 + 1] = (pos.getY(i) - min.y) / spanY
+  }
+  geometry.setAttribute('uv', new BufferAttribute(uvs, 2))
+}
+
+function buildChipRoot(scene, lookId) {
+  const { baseGeo, bodyGeo, sourceMaterial } = getChipParts(scene)
+  const group = new Group()
+  group.name = 'chip-root'
+
+  const silver = createSilverBaseMaterial(sourceMaterial)
+  const topMat = createTopMaterial(lookId, sourceMaterial)
+
+  if (baseGeo) {
+    const base = new Mesh(baseGeo, silver)
+    base.castShadow = true
+    base.receiveShadow = true
+    base.name = 'chip-silver-base'
+    group.add(base)
+  }
+  if (bodyGeo) {
+    // Sand/terrazzo maps need planar UVs so porosity stays on one side only.
+    const usePlanar = lookId === 'sand' || lookId === 'terrazzo'
+    const geo = usePlanar ? bodyGeo.clone() : bodyGeo
+    if (usePlanar) applyPlanarFrontUVs(geo)
+    const body = new Mesh(geo, topMat)
+    body.castShadow = true
+    body.receiveShadow = true
+    body.name = 'chip-top-body'
+    group.add(body)
+  }
+
+  normalizeObject(group, CHIP_SCALE)
+  group.scale.z *= CHIP_Z_SQUASH
+  group.updateMatrixWorld(true)
+  group.position.y += CHIP_BURY[1]
+  group.position.z += CHIP_BURY[2]
+  return group
+}
+
 function TrayModel({ children }) {
   const { scene } = useGLTF(TRAY_URL)
 
@@ -170,44 +320,73 @@ function TrayModel({ children }) {
   )
 }
 
-function ChipModel3D({ slot, x = 0, onRemove }) {
+function ChipModel3D({
+  chipId,
+  slot,
+  x = 0,
+  exiting = false,
+  onRequestRemove,
+  onExited,
+}) {
   const { scene } = useGLTF(CHIP_URL)
   const groupRef = useRef(null)
+  const phaseRef = useRef('insert') // insert | seated | eject
   const progressRef = useRef(0)
+  const ejectFromYRef = useRef(0)
+  const exitedRef = useRef(false)
   const [seatY, seatZ] = rowSeat(slot)
+  const lookId = lookIdForChip(chipId)
 
-  const prepared = useMemo(() => {
-    const cloned = cloneSkinned(scene)
-    cloned.traverse((node) => {
-      if (!node.isMesh) return
-      node.castShadow = true
-      node.receiveShadow = true
-    })
-    // Source GLB orientation as-is — no extra rotation
-    normalizeObject(cloned, CHIP_SCALE)
-    cloned.scale.z *= CHIP_Z_SQUASH
-    cloned.updateMatrixWorld(true)
-    cloned.position.y += CHIP_BURY[1]
-    cloned.position.z += CHIP_BURY[2]
-    return cloned
-  }, [scene])
+  const prepared = useMemo(
+    () => buildChipRoot(scene, lookId),
+    [scene, lookId],
+  )
 
   useLayoutEffect(() => {
+    phaseRef.current = 'insert'
     progressRef.current = 0
+    exitedRef.current = false
     const group = groupRef.current
     if (!group) return
     group.position.set(x, seatY + INSERT_DROP, seatZ)
   }, [x, seatY, seatZ])
 
+  useLayoutEffect(() => {
+    if (!exiting) return
+    if (phaseRef.current === 'eject') return
+    const group = groupRef.current
+    ejectFromYRef.current = group?.position.y ?? seatY
+    phaseRef.current = 'eject'
+    progressRef.current = 0
+    exitedRef.current = false
+  }, [exiting, seatY])
+
   useFrame((_, delta) => {
     const group = groupRef.current
-    if (!group || progressRef.current >= 1) return
+    if (!group) return
 
-    progressRef.current = Math.min(1, progressRef.current + delta / INSERT_DURATION)
-    const t = easeOutBack(progressRef.current)
-    group.position.y = seatY + INSERT_DROP * (1 - t)
-    group.position.x = x
-    group.position.z = seatZ
+    if (phaseRef.current === 'insert') {
+      progressRef.current = Math.min(1, progressRef.current + delta / INSERT_DURATION)
+      const t = easeOutBack(progressRef.current)
+      group.position.set(x, seatY + INSERT_DROP * (1 - t), seatZ)
+      if (progressRef.current >= 1) phaseRef.current = 'seated'
+      return
+    }
+
+    if (phaseRef.current === 'eject') {
+      progressRef.current = Math.min(1, progressRef.current + delta / EJECT_DURATION)
+      const t = easeInCubic(progressRef.current)
+      const endY = seatY + INSERT_DROP
+      group.position.set(
+        x,
+        ejectFromYRef.current + (endY - ejectFromYRef.current) * t,
+        seatZ,
+      )
+      if (progressRef.current >= 1 && !exitedRef.current) {
+        exitedRef.current = true
+        onExited?.()
+      }
+    }
   })
 
   return (
@@ -216,7 +395,8 @@ function ChipModel3D({ slot, x = 0, onRemove }) {
       position={[x, seatY + INSERT_DROP, seatZ]}
       onClick={(event) => {
         event.stopPropagation()
-        onRemove?.()
+        if (exiting || phaseRef.current === 'eject') return
+        onRequestRemove?.()
       }}
       onPointerOver={(event) => {
         event.stopPropagation()
@@ -264,15 +444,18 @@ function CameraRig({ view }) {
   )
 }
 
-function PlacedChips({ placements, onRemoveChip }) {
+function PlacedChips({ placements, onRequestRemove, onExited }) {
   return (
     <group>
       {placements.map((item) => (
         <Suspense key={item.chipId} fallback={null}>
           <ChipModel3D
+            chipId={item.chipId}
             slot={item.slot}
             x={item.x ?? 0}
-            onRemove={() => onRemoveChip?.(item.chipId)}
+            exiting={Boolean(item.exiting)}
+            onRequestRemove={() => onRequestRemove?.(item.chipId)}
+            onExited={() => onExited?.(item.chipId)}
           />
         </Suspense>
       ))}
@@ -283,7 +466,8 @@ function PlacedChips({ placements, onRemoveChip }) {
 export default function BoardModel({
   view = 'board',
   placements = [],
-  onRemoveChip,
+  onRequestRemove,
+  onExited,
 }) {
   return (
     <div className="board-3d">
@@ -314,7 +498,11 @@ export default function BoardModel({
         <Suspense fallback={null}>
           <Environment preset="studio" environmentIntensity={0.28} />
           <TrayModel>
-            <PlacedChips placements={placements} onRemoveChip={onRemoveChip} />
+            <PlacedChips
+              placements={placements}
+              onRequestRemove={onRequestRemove}
+              onExited={onExited}
+            />
           </TrayModel>
         </Suspense>
       </Canvas>
