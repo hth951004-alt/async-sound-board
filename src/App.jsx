@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import boardImage from './assets/figma/board.png'
 import toolSide from './assets/figma/tool-side.png'
 import toolEq from './assets/figma/tool-eq.png'
-import BoardModel from './BoardModel.jsx'
+import BoardModel, { ROW_COUNT, pickChipX } from './BoardModel.jsx'
 
 const chipModules = import.meta.glob('../image/chip-reed-*.svg', {
   eager: true,
@@ -26,12 +26,8 @@ const BOARD_TOOLS = [
   { id: 'eq', src: toolEq, label: 'Control view' },
 ]
 
-const SLOT_COUNT = 6
-
 export default function App() {
-  const boardRef = useRef(null)
   const [placements, setPlacements] = useState([])
-  const [dragChipId, setDragChipId] = useState(null)
   const [activeTool, setActiveTool] = useState('board')
 
   const usedIds = useMemo(
@@ -39,40 +35,28 @@ export default function App() {
     [placements],
   )
 
-  const slotFromPoint = (clientX, clientY) => {
-    const board = boardRef.current
-    if (!board) return -1
-    const rect = board.getBoundingClientRect()
-    const x = (clientX - rect.left) / rect.width
-    const y = (clientY - rect.top) / rect.height
-    if (x < 0.18 || x > 0.82 || y < 0.22 || y > 0.82) return -1
-    return Math.min(SLOT_COUNT - 1, Math.max(0, Math.floor((y - 0.22) / 0.1)))
+  /** Prefer the least-filled row so several chips can share a line with random X. */
+  const nextRow = (current) => {
+    const counts = Array.from({ length: ROW_COUNT }, () => 0)
+    for (const item of current) counts[item.slot] += 1
+    let best = 0
+    for (let row = 1; row < ROW_COUNT; row += 1) {
+      if (counts[row] < counts[best]) best = row
+    }
+    return best
   }
 
-  const onGalleryPointerDown = (chipId, event) => {
-    if (usedIds.has(chipId)) return
-    event.preventDefault()
-    const target = event.currentTarget
-    target.setPointerCapture?.(event.pointerId)
-    setDragChipId(chipId)
-
-    const onUp = (upEvent) => {
-      target.releasePointerCapture?.(upEvent.pointerId)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-
-      const slot = slotFromPoint(upEvent.clientX, upEvent.clientY)
-      setDragChipId(null)
-      if (slot < 0) return
-
-      setPlacements((current) => {
-        const withoutChip = current.filter((item) => item.chipId !== chipId)
-        return [...withoutChip, { chipId, slot }]
-      })
+  const onGalleryClick = (chipId) => {
+    if (usedIds.has(chipId)) {
+      setPlacements((current) => current.filter((item) => item.chipId !== chipId))
+      return
     }
 
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
+    setPlacements((current) => {
+      const slot = nextRow(current)
+      const x = pickChipX(slot, current)
+      return [...current, { chipId, slot, x }]
+    })
   }
 
   const removePlacement = (chipId) => {
@@ -91,12 +75,10 @@ export default function App() {
                 <button
                   key={chip.id}
                   type="button"
-                  className={`chip-card${used ? ' is-used' : ''}${
-                    dragChipId === chip.id ? ' is-dragging' : ''
-                  }`}
-                  aria-label={chip.label}
-                  disabled={used}
-                  onPointerDown={(event) => onGalleryPointerDown(chip.id, event)}
+                  className={`chip-card${used ? ' is-used' : ''}`}
+                  aria-label={used ? `Remove ${chip.label}` : `Insert ${chip.label}`}
+                  aria-pressed={used}
+                  onClick={() => onGalleryClick(chip.id)}
                 >
                   <img src={chip.src} alt="" draggable={false} />
                 </button>
@@ -123,24 +105,15 @@ export default function App() {
             ))}
           </div>
 
-          <div className="board-stage" ref={boardRef} aria-label="Board">
-            <BoardModel view={activeTool} />
-            {placements.map((item) => {
-              const chip = GALLERY_CHIPS.find((entry) => entry.id === item.chipId)
-              if (!chip) return null
-              return (
-                <button
-                  key={item.chipId}
-                  type="button"
-                  className="board-chip"
-                  style={{ top: `${28 + item.slot * 9.2}%` }}
-                  aria-label={`Remove ${chip.label}`}
-                  onClick={() => removePlacement(item.chipId)}
-                >
-                  <img src={chip.src} alt="" draggable={false} />
-                </button>
-              )
-            })}
+          <div className="board-stage" aria-label="Board">
+            <BoardModel
+              view={activeTool}
+              placements={placements}
+              onRemoveChip={removePlacement}
+            />
+            <p className="drop-hint drop-hint--idle">
+              칩 사진을 클릭하면 3D로 보드에 꽂혀요 · 보드의 칩을 클릭하면 빠져요
+            </p>
           </div>
         </section>
       </div>
