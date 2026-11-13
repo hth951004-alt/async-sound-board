@@ -1,7 +1,30 @@
+/* Figma 1437:231 — Frame 86: 1131 × 736
+   Left 454 | Right 677
+   Chip cards 177 × 177, col gap 13, row gap 10
+   Left pad 41, right pad 46, first row y=89, title y=36.5
+*/
+
 :root {
-  color-scheme: dark;
-  background: #000;
-  font-family: Arial, Helvetica, sans-serif;
+  color-scheme: light;
+  --page: #efefef;
+  --panel: #fff;
+  --frame-w: 1131;
+  --frame-h: 736;
+  --left-w: 454;
+  --right-w: 677;
+  --chip: 177;
+  --chip-gap-x: 13;
+  --chip-gap-y: 10;
+  --pad-l: 41;
+  --pad-r: 46;
+  --title-y: 36.5;
+  --grid-y: 89;
+  --title-size: 10.608;
+  --tool: 55;
+  --tool-right: 29;
+  --tool-top: 31;
+  --tool-gap: 16;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
 }
@@ -19,7 +42,8 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #000;
+  background: var(--page);
+  color: #111;
 }
 
 img {
@@ -29,327 +53,245 @@ img {
   -webkit-user-drag: none;
 }
 
-.viewport {
-  display: grid;
+button {
+  font: inherit;
+}
+
+.page {
   width: 100%;
   height: 100%;
-  place-items: center;
-  overflow: hidden;
-  background: #000;
+  background: var(--page);
 }
 
-/*
- * Exact Figma coordinate plane: 1920 × 1080.
- * The stage scales as one unit, preserving every relative coordinate.
- */
-.figma-stage {
+.canvas {
+  display: grid;
+  /* 454 | 677 */
+  grid-template-columns: minmax(0, 454fr) minmax(0, 677fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--page);
+}
+
+.chips-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  /* title → first card row: 89 − 36.5 − 14.85 ≈ 37.65 */
+  gap: calc(37.65 / 1131 * 100vw);
+  min-width: 0;
+  min-height: 0;
+  padding-top: calc(36.5 / 736 * 100vh);
+  padding-right: calc(46 / 454 * 100%);
+  padding-bottom: calc(24 / 736 * 100vh);
+  padding-left: calc(41 / 454 * 100%);
+  overflow: hidden;
+}
+
+.section-title {
+  margin: 0;
+  font-size: calc(10.608 / 1131 * 100vw);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: #111;
+  white-space: nowrap;
+}
+
+.chip-grid {
+  /* Figma: 177×177 cards, col gap 13, row gap 10 */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  column-gap: calc(13 / 1131 * 100vw);
+  row-gap: calc(10 / 1131 * 100vw);
+  align-content: start;
+  justify-items: stretch;
+  width: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+}
+
+.chip-card {
+  /* padding-bottom square: aspect-ratio + overflow:hidden collapses grid rows */
   position: relative;
-  width: min(100vw, 177.7778vh);
-  height: min(100vh, 56.25vw);
-  overflow: hidden;
-  background: #000;
-  isolation: isolate;
-}
-
-.stage-wash {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: #000;
-  transition: background 800ms ease;
-  pointer-events: none;
-}
-
-.board-stack,
-.board-base,
-.board-layer,
-.board-edge-overlay,
-.slot-highlight,
-.chip {
-  position: absolute;
-}
-
-/* Figma node 1277:9607 — layered board image plane */
-.board-stack {
-  inset: 0;
-  pointer-events: none;
-}
-
-.board-base {
-  z-index: 5;
-  top: 25.8796%;
-  left: 24.6615%;
-  width: 49.9219%;
-  height: 50.7407%;
-}
-
-.board-layer {
-  top: 6.3889%;
-  left: 22.1354%;
-  width: 55.7292%;
-  height: 87.1296%;
-  object-fit: cover;
-}
-
-.board-layer[data-layer="1"] {
-  z-index: 10;
-}
-
-.board-layer[data-layer="2"] {
-  z-index: 20;
-}
-
-.board-layer[data-layer="3"] {
-  z-index: 30;
-}
-
-.board-layer[data-layer="4"] {
-  z-index: 40;
-}
-
-.board-layer[data-layer="5"] {
-  z-index: 50;
-}
-
-.board-layer[data-layer="6"] {
-  z-index: 60;
-}
-
-.board-edge-overlay {
-  z-index: 70;
-  top: 6.3889%;
-  left: 22.1354%;
-  width: 55.7292%;
-  height: 87.1296%;
-  object-fit: cover;
-}
-
-/* Figma image 1957 — front lip starts at y320 within board plane */
-.board-edge-overlay--front {
-  clip-path: inset(26.67% 0 0 0);
-}
-
-.slot-highlight {
-  left: 27%;
-  width: 46%;
-  border-radius: 999px;
-  opacity: 0;
-  background:
-    linear-gradient(
-      180deg,
-      rgb(255 255 255 / 0%) 0%,
-      rgb(255 255 255 / 28%) 45%,
-      rgb(255 255 255 / 8%) 100%
-    );
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 18%),
-    0 0 28px rgb(255 255 255 / 18%);
-  transition: opacity 140ms ease;
-  pointer-events: none;
-}
-
-.slot-highlight[data-slot="0"] {
-  top: 18%;
-  height: 9%;
-  z-index: 16;
-}
-
-.slot-highlight[data-slot="1"] {
-  top: 27%;
-  height: 9%;
-  z-index: 26;
-}
-
-.slot-highlight[data-slot="2"] {
-  top: 36%;
-  height: 9%;
-  z-index: 36;
-}
-
-.slot-highlight[data-slot="3"] {
-  top: 45%;
-  height: 9%;
-  z-index: 46;
-}
-
-.slot-highlight[data-slot="4"] {
-  top: 54%;
-  height: 9.5%;
-  z-index: 56;
-}
-
-.slot-highlight[data-slot="5"] {
-  top: 63.5%;
-  height: 12%;
-  z-index: 66;
-}
-
-.board-stack[data-hover-slot="0"] .slot-highlight[data-slot="0"],
-.board-stack[data-hover-slot="1"] .slot-highlight[data-slot="1"],
-.board-stack[data-hover-slot="2"] .slot-highlight[data-slot="2"],
-.board-stack[data-hover-slot="3"] .slot-highlight[data-slot="3"],
-.board-stack[data-hover-slot="4"] .slot-highlight[data-slot="4"],
-.board-stack[data-hover-slot="5"] .slot-highlight[data-slot="5"] {
-  opacity: 1;
-}
-
-.chip {
-  display: none;
-  z-index: 2;
-  top: 0 !important;
-  left: 0 !important;
-  width: var(--chip-width, 7%);
-  height: auto;
-  object-fit: contain;
-  transform-origin: center;
-  will-change: transform, opacity, filter;
+  width: 100%;
+  height: 0;
+  padding-bottom: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
   cursor: grab;
-  pointer-events: auto;
   touch-action: none;
+  overflow: hidden;
 }
 
-.chip.is-inserted {
+.chip-card img {
+  position: absolute;
+  inset: 6%;
+  width: 88%;
+  height: 88%;
+  margin: auto;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+}
+
+.chip-card.is-used {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.chip-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.7;
+}
+
+.main-panel {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel);
+  /* board title at frame x=496 → 42px into right panel; y=36.5 */
+  padding-top: calc(36.5 / 736 * 100vh);
+  padding-right: calc(29 / 677 * 100%);
+  padding-bottom: calc(24 / 736 * 100vh);
+  padding-left: calc(42 / 677 * 100%);
+}
+
+.section-title--board {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  margin-bottom: 0;
+}
+
+.board-tools {
+  position: absolute;
+  top: calc(31 / 736 * 100vh);
+  right: calc(29 / 1131 * 100vw);
+  display: grid;
+  gap: calc(16 / 736 * 100vh);
+  z-index: 2;
+}
+
+.board-tool {
+  width: calc(55 / 1131 * 100vw);
+  height: calc(55 / 1131 * 100vw);
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 4px;
+  background: #efefef;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.board-tool.is-active {
+  outline: 1px solid #111;
+}
+
+.board-tool img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.board-stage {
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  /* leave room for tools: Figma board image ends before tools */
+  padding-right: calc(67 / 677 * 100%);
+}
+
+.board-3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
   cursor: grab;
-  /* Hide the silver/grey tip once the chip is seated in a slot. */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 68%,
-    rgba(0, 0, 0, 0.35) 78%,
-    transparent 88%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 68%,
-    rgba(0, 0, 0, 0.35) 78%,
-    transparent 88%
-  );
 }
 
-.chip.is-dragging {
+.board-3d:active {
   cursor: grabbing;
 }
 
-.onboarding {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  display: grid;
-  overflow: hidden;
-  place-items: center;
-  background: #000;
-  pointer-events: none;
-  animation: onboarding-exit 3.5s ease-in-out both;
+.board-3d canvas {
+  width: 100% !important;
+  height: 100% !important;
+  /* very slight soft-focus / blurry glow */
+  filter: blur(0.65px) contrast(1.03);
 }
 
-.onboarding-canvas {
-  position: relative;
-  width: min(100vw, 177.7778vh);
-  aspect-ratio: 16 / 9;
-}
-
-.onboarding-mark {
+.board-chip {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 16.3021%;
-  aspect-ratio: 313 / 73.0774;
-  transform: translate(-50%, -50%);
+  left: 46%;
+  width: 12%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -42%);
+  cursor: pointer;
+  z-index: 2;
 }
 
-.onboarding-letter {
-  position: relative;
-  flex: 0 0 var(--letter-width);
-  height: 100%;
-  transform-origin: center;
-}
-
-.onboarding-letter:first-child {
-  z-index: 1;
-  animation: onboarding-first-to-center 720ms
-    cubic-bezier(0.22, 1, 0.36, 1) 1.9s forwards;
-}
-
-.onboarding-letter:not(:first-child) {
-  animation: onboarding-other-letters-out 320ms ease-in-out 1.72s forwards;
-}
-
-.onboarding-letter-image {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+.board-chip img {
   width: 100%;
-  max-height: 100%;
+  height: auto;
   object-fit: contain;
-  opacity: 0;
-  transform: translate(-50%, calc(-50% + 10px)) scale(0.94);
-  filter: blur(3px);
-  animation: onboarding-letter-reveal 620ms
-    cubic-bezier(0.22, 1, 0.36, 1) var(--letter-delay) both;
-  will-change: transform, opacity, filter;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 16%));
 }
 
-@keyframes onboarding-letter-reveal {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% + 10px)) scale(0.94);
-    filter: blur(3px);
+@media (max-width: 900px) {
+  .canvas {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(45vh, 1fr) minmax(50vh, 1.15fr);
+    overflow: auto;
   }
 
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-    filter: blur(0);
-  }
-}
-
-@keyframes onboarding-other-letters-out {
-  to {
-    opacity: 0;
-    transform: translateY(4px) scale(0.94);
-  }
-}
-
-@keyframes onboarding-first-to-center {
-  from {
-    transform: translateX(0) scale(1);
+  .chips-panel {
+    padding-top: 1.25rem;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    gap: 1rem;
   }
 
-  to {
-    transform: translateX(194%) scale(1.1);
-  }
-}
-
-@keyframes onboarding-exit {
-  0%,
-  84% {
-    opacity: 1;
+  .chip-grid {
+    column-gap: 13px;
+    row-gap: 10px;
   }
 
-  100% {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
+  .section-title {
+    font-size: 0.66rem;
   }
 
-  .onboarding-letter {
-    animation: none;
+  .board-stage {
+    padding-right: 0;
   }
 
-  .onboarding-letter-image {
-    opacity: 1;
-    filter: none;
-    animation: none;
-    transform: translate(-50%, -50%);
+  .board-tools {
+    right: 0.8rem;
+    top: 1rem;
+  }
+
+  .board-tool {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 }
