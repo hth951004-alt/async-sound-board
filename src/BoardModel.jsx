@@ -1,6 +1,6 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF } from '@react-three/drei'
+import { Environment, OrbitControls, useGLTF } from '@react-three/drei'
 import {
   ACESFilmicToneMapping,
   Box3,
@@ -12,7 +12,7 @@ import {
 } from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 
-const MODEL_URL = `${import.meta.env.BASE_URL}wavy-tray.glb`
+const MODEL_URL = `${import.meta.env.BASE_URL}wavy-tray.glb?v=pp1`
 
 const VIEW_PRESETS = {
   board: {
@@ -29,24 +29,26 @@ const VIEW_PRESETS = {
   },
 }
 
-function createWarmMatteMaterial() {
+function createMatteTranslucentPP() {
+  // Polypropylene: IOR ~1.49, matte, softly translucent, slight beige
   return new MeshPhysicalMaterial({
-    color: new Color('#fcf9f4'),
-    roughness: 0.74,
+    color: new Color('#e8dfd2'),
+    roughness: 0.84,
     metalness: 0,
-    transmission: 0.05,
-    thickness: 0.28,
-    ior: 1.4,
+    transmission: 0.32,
+    thickness: 0.7,
+    ior: 1.49,
     transparent: true,
-    opacity: 0.985,
-    attenuationColor: new Color('#f5eee6'),
-    attenuationDistance: 4.5,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.48,
-    sheen: 0.16,
-    sheenRoughness: 0.62,
-    sheenColor: new Color('#ffffff'),
-    envMapIntensity: 0.18,
+    opacity: 0.95,
+    attenuationColor: new Color('#d9cbb8'),
+    attenuationDistance: 0.85,
+    specularIntensity: 0.22,
+    clearcoat: 0,
+    clearcoatRoughness: 1,
+    sheen: 0.06,
+    sheenRoughness: 0.85,
+    sheenColor: new Color('#f2ebe2'),
+    envMapIntensity: 0.42,
     side: DoubleSide,
     depthWrite: true,
   })
@@ -57,12 +59,13 @@ function TrayModel() {
 
   const prepared = useMemo(() => {
     const cloned = cloneSkinned(scene)
+    const pp = createMatteTranslucentPP()
 
     cloned.traverse((node) => {
       if (!node.isMesh) return
       node.castShadow = true
       node.receiveShadow = true
-      node.material = createWarmMatteMaterial()
+      node.material = pp
     })
 
     const box = new Box3().setFromObject(cloned)
@@ -128,22 +131,25 @@ export default function BoardModel({ view = 'board' }) {
         onCreated={({ gl }) => {
           gl.outputColorSpace = SRGBColorSpace
           gl.toneMapping = ACESFilmicToneMapping
-          gl.toneMappingExposure = 1.18
+          gl.toneMappingExposure = 1.08
         }}
       >
         <CameraRig view={view} />
-        <ambientLight intensity={0.4} color="#f7f5f2" />
-        <hemisphereLight args={['#ffffff', '#ddd6cd', 0.32]} />
+        <ambientLight intensity={0.28} color="#f3efe9" />
+        <hemisphereLight args={['#fffaf4', '#b9aea0', 0.42]} />
         <directionalLight
           castShadow
-          position={[0.4, 3.2, 3.8]}
-          intensity={1.55}
-          color="#fffdf9"
+          position={[0.55, 3.4, 3.5]}
+          intensity={1.85}
+          color="#fff8f0"
           shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0002}
         />
-        <directionalLight position={[-2.4, 1.6, 1.2]} intensity={0.45} color="#ffffff" />
-        <directionalLight position={[2.2, 0.8, -1.6]} intensity={0.35} color="#f2ebe3" />
+        <directionalLight position={[-2.6, 1.4, 1.0]} intensity={0.32} color="#ffffff" />
+        <directionalLight position={[2.0, 0.6, -1.8]} intensity={0.22} color="#cfc3b4" />
         <Suspense fallback={null}>
+          {/* Soft studio light so PP transmission doesn't wash out */}
+          <Environment preset="studio" environmentIntensity={0.28} />
           <TrayModel />
         </Suspense>
       </Canvas>
