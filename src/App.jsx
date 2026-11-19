@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import BoardModel, { ROW_COUNT, pickChipX } from './BoardModel.jsx'
+import { syncChipAudio, unlockChipAudio } from './chipAudio.js'
 
 const chipModules = import.meta.glob('../image/chip-reed-*.svg', {
   eager: true,
@@ -24,6 +25,14 @@ export default function App() {
     () => new Set(placements.map((item) => item.chipId)),
     [placements],
   )
+
+  // Play while seated; stop as soon as eject starts.
+  useEffect(() => {
+    const active = placements
+      .filter((item) => !item.exiting)
+      .map((item) => item.chipId)
+    syncChipAudio(active)
+  }, [placements])
 
   /** Prefer the least-filled row so several chips can share a line with random X. */
   const nextRow = (current) => {
@@ -50,6 +59,7 @@ export default function App() {
   }
 
   const onGalleryClick = (chipId) => {
+    unlockChipAudio()
     if (usedIds.has(chipId)) {
       requestRemove(chipId)
       return
@@ -98,7 +108,7 @@ export default function App() {
               onExited={finishRemove}
             />
             <p className="drop-hint drop-hint--idle">
-              칩 사진을 클릭하면 3D로 보드에 꽂혀요 · 보드의 칩을 클릭하면 빠져요
+              노트 사진을 클릭하면 3D로 보드에 꽂혀요 · 보드의 노트를 클릭하면 빠져요
             </p>
           </div>
         </section>

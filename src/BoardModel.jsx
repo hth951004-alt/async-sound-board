@@ -447,10 +447,12 @@ function ChipModel3D({
       }}
       onPointerOver={(event) => {
         event.stopPropagation()
-        document.body.style.cursor = 'pointer'
+        document.body.style.cursor =
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpolygon points='7,1 13,13 1,13' fill='%23000'/%3E%3C/svg%3E\") 7 1, auto"
       }}
       onPointerOut={() => {
-        document.body.style.cursor = 'grab'
+        document.body.style.cursor =
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpolygon points='7,1 13,13 1,13' fill='%23000'/%3E%3C/svg%3E\") 7 1, auto"
       }}
     >
       <primitive object={prepared} />

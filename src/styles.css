@@ -6,12 +6,13 @@
 
 :root {
   color-scheme: light;
+  --cursor-sq: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpolygon points='7,1 13,13 1,13' fill='%23000'/%3E%3C/svg%3E") 7 1, auto;
   --page: #efefef;
   --panel: #fff;
   --frame-w: 1131;
   --frame-h: 736;
-  --left-w: 454;
-  --right-w: 677;
+  --left-w: 3;
+  --right-w: 7;
   --chip: 177;
   --chip-gap-x: 13;
   --chip-gap-y: 10;
@@ -44,6 +45,7 @@ body,
   overflow: hidden;
   background: var(--page);
   color: #111;
+  cursor: var(--cursor-sq);
 }
 
 img {
@@ -65,8 +67,8 @@ button {
 
 .canvas {
   display: grid;
-  /* 454 | 677 */
-  grid-template-columns: minmax(0, 454fr) minmax(0, 677fr);
+  /* chips | board = 3 : 7 */
+  grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -148,7 +150,7 @@ button {
   border: 0;
   border-radius: 8px;
   background: #fff;
-  cursor: pointer;
+  cursor: var(--cursor-sq);
   touch-action: manipulation;
   overflow: hidden;
 }
@@ -176,7 +178,7 @@ button {
 
 .chip-card.is-used {
   opacity: 0.28;
-  cursor: pointer;
+  cursor: var(--cursor-sq);
 }
 
 
@@ -215,12 +217,12 @@ button {
   height: 100%;
   z-index: 0;
   pointer-events: auto;
-  cursor: grab;
+  cursor: var(--cursor-sq);
   overflow: hidden;
 }
 
 .board-3d:active {
-  cursor: grabbing;
+  cursor: var(--cursor-sq);
 }
 
 .board-3d canvas {
