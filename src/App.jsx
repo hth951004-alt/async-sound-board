@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import BoardModel, { ROW_COUNT, pickChipX } from './BoardModel.jsx'
-import { syncChipAudio, unlockChipAudio } from './chipAudio.js'
+import {
+  startChipAudio,
+  stopChipAudio,
+  syncChipAudio,
+  unlockChipAudio,
+} from './chipAudio.js'
 
 const chipModules = import.meta.glob('../image/chip-reed-*.svg', {
   eager: true,
@@ -47,6 +52,8 @@ export default function App() {
   }
 
   const requestRemove = (chipId) => {
+    // Stop in the click gesture so audio never waits on useEffect.
+    stopChipAudio(chipId)
     setPlacements((current) =>
       current.map((item) =>
         item.chipId === chipId && !item.exiting ? { ...item, exiting: true } : item,
@@ -55,6 +62,7 @@ export default function App() {
   }
 
   const finishRemove = (chipId) => {
+    stopChipAudio(chipId)
     setPlacements((current) => current.filter((item) => item.chipId !== chipId))
   }
 
@@ -65,6 +73,8 @@ export default function App() {
       return
     }
 
+    // Start inside the user-gesture stack (useEffect play is blocked by autoplay policy).
+    startChipAudio(chipId)
     setPlacements((current) => {
       const active = current.filter((item) => !item.exiting)
       const slot = nextRow(current)

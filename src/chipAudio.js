@@ -31,7 +31,9 @@ const AUDIO_FILES = {
 
 /** @type {Map<string, HTMLAudioElement>} */
 const players = new Map()
-let unlocked = false
+
+/** @type {AudioContext | null} */
+let audioCtx = null
 
 function urlForChip(chipId) {
   const file = AUDIO_FILES[chipId]
@@ -52,18 +54,19 @@ function getOrCreatePlayer(chipId) {
   return audio
 }
 
-function stopPlayer(chipId) {
-  const audio = players.get(chipId)
-  if (!audio) return
-  audio.pause()
-  try {
-    audio.currentTime = 0
-  } catch {
-    /* ignore seek errors on unloaded media */
+/** Must run inside a user-gesture handler (click). */
+export function unlockChipAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext
+  if (AC) {
+    if (!audioCtx) audioCtx = new AC()
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {})
+    }
   }
 }
 
-function startPlayer(chipId) {
+export function startChipAudio(chipId) {
+  unlockChipAudio()
   const audio = getOrCreatePlayer(chipId)
   if (!audio) return
   if (!audio.paused && !audio.ended) return
@@ -71,28 +74,14 @@ function startPlayer(chipId) {
   if (play?.catch) play.catch(() => {})
 }
 
-/**
- * Call from a user gesture (gallery click) so browsers allow audio.play().
- * Plays a tiny silent buffer via the first available chip element if needed.
- */
-export function unlockChipAudio() {
-  if (unlocked) return
-  unlocked = true
-  // Warm one player; subsequent plays are treated as continuing the gesture chain.
-  const probe = new Audio(
-    `${import.meta.env.BASE_URL}chip-audio/${AUDIO_FILES['chip-002']}`,
-  )
-  probe.volume = 0
-  const play = probe.play()
-  if (play?.then) {
-    play
-      .then(() => {
-        probe.pause()
-        probe.src = ''
-      })
-      .catch(() => {
-        unlocked = false
-      })
+export function stopChipAudio(chipId) {
+  const audio = players.get(chipId)
+  if (!audio) return
+  audio.pause()
+  try {
+    audio.currentTime = 0
+  } catch {
+    /* ignore */
   }
 }
 
@@ -100,13 +89,13 @@ export function unlockChipAudio() {
 export function syncChipAudio(activeChipIds) {
   const active = new Set(activeChipIds)
   for (const id of players.keys()) {
-    if (!active.has(id)) stopPlayer(id)
+    if (!active.has(id)) stopChipAudio(id)
   }
-  for (const id of active) startPlayer(id)
+  for (const id of active) startChipAudio(id)
 }
 
 export function stopAllChipAudio() {
-  for (const id of players.keys()) stopPlayer(id)
+  for (const id of players.keys()) stopChipAudio(id)
 }
 
 export function hasChipAudio(chipId) {
