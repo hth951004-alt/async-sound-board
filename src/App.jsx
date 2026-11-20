@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import BoardModel, { ROW_COUNT, pickChipX } from './BoardModel.jsx'
 import {
   startChipAudio,
@@ -108,7 +109,13 @@ export default function App() {
         </aside>
 
         <section className="main-panel">
-          <p className="section-title section-title--board">board</p>
+          <p className="section-title section-title--board">
+            <Link to="/" className="board-home-link">
+              ASYNC
+            </Link>
+            <span aria-hidden="true"> · </span>
+            board
+          </p>
 
           <div className="board-stage" aria-label="Board">
             <BoardModel

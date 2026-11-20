@@ -274,7 +274,13 @@ function applyPlanarFrontUVs(geometry) {
   geometry.setAttribute('uv', new BufferAttribute(uvs, 2))
 }
 
-function buildChipRoot(scene, lookId, cacheKey) {
+/**
+ * Build a silver-base + top-body chip group from a loaded GLB scene.
+ * @param {{ bury?: boolean, scale?: number }} [opts]
+ */
+export function buildChipRoot(scene, lookId, cacheKey, opts = {}) {
+  const bury = opts.bury !== false
+  const scale = opts.scale ?? CHIP_SCALE
   const { baseGeo, bodyGeo, sourceMaterial } = getChipParts(scene, cacheKey)
   const group = new Group()
   group.name = 'chip-root'
@@ -322,11 +328,13 @@ function buildChipRoot(scene, lookId, cacheKey) {
     group.add(body)
   }
 
-  normalizeObject(group, CHIP_SCALE)
+  normalizeObject(group, scale)
   group.scale.z *= CHIP_Z_SQUASH
   group.updateMatrixWorld(true)
-  group.position.y += CHIP_BURY[1]
-  group.position.z += CHIP_BURY[2]
+  if (bury) {
+    group.position.y += CHIP_BURY[1]
+    group.position.z += CHIP_BURY[2]
+  }
   return group
 }
 

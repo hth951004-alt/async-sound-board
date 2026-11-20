@@ -196,7 +196,16 @@ button {
   left: calc(42 / 677 * 100%);
   z-index: 2;
   margin: 0;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.board-home-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.board-home-link:hover {
+  text-decoration: underline;
 }
 
 .board-stage {
